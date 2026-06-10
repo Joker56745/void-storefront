@@ -9,6 +9,9 @@ export default {
       colors: {
         primary: 'rgb(var(--color-primary) / <alpha-value>)',
         contrast: 'rgb(var(--color-contrast) / <alpha-value>)',
+        surface: 'rgb(var(--color-surface) / <alpha-value>)',
+        accent: 'rgb(var(--color-accent) / <alpha-value>)',
+        silver: 'rgb(var(--color-silver) / <alpha-value>)',
         notice: 'rgb(var(--color-accent) / <alpha-value>)',
         shopPay: 'rgb(var(--color-shop-pay) / <alpha-value>)',
       },
@@ -39,8 +42,19 @@ export default {
         mobileGallery: 'calc(100vw - 3rem)',
       },
       fontFamily: {
-        sans: ['Helvetica Neue', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        serif: ['"IBMPlexSerif"', 'Palatino', 'ui-serif'],
+        sans: [
+          '"Helvetica Neue"',
+          'Helvetica',
+          'Arial',
+          'ui-sans-serif',
+          'system-ui',
+          'sans-serif',
+        ],
+        serif: ['"IBMPlexSerif"', 'Georgia', 'ui-serif', 'serif'],
+      },
+      letterSpacing: {
+        void: '0.35em',
+        'void-nav': '0.2em',
       },
       fontSize: {
         display: ['var(--font-size-display)', '1.1'],
@@ -54,9 +68,9 @@ export default {
         'prose-wide': '80ch',
       },
       boxShadow: {
-        border: 'inset 0px 0px 0px 1px rgb(var(--color-primary) / 0.08)',
-        darkHeader: 'inset 0px -1px 0px 0px rgba(21, 21, 21, 0.4)',
-        lightHeader: 'inset 0px -1px 0px 0px rgba(21, 21, 21, 0.05)',
+        border: 'inset 0px 0px 0px 1px rgb(var(--color-primary) / 0.06)',
+        darkHeader: 'inset 0 -1px 0 0 rgb(var(--color-primary) / 0.06)',
+        lightHeader: 'inset 0 -1px 0 0 rgb(var(--color-primary) / 0.04)',
       },
     },
   },

@@ -21,7 +21,11 @@ import {Button} from '~/components/Button';
 import {Text, Heading} from '~/components/Text';
 import {Link} from '~/components/Link';
 import {IconRemove} from '~/components/Icon';
-import {FeaturedProducts} from '~/components/FeaturedProducts';
+import {VoidCartSuggestions} from '~/components/VoidCartSuggestions';
+import {
+  computeVoidCartSubtotal,
+  parseVoidCartLine,
+} from '~/lib/void-cart-display';
 import {getInputStyleClasses} from '~/lib/utils';
 
 type Layouts = 'page' | 'drawer';
@@ -52,7 +56,6 @@ export function CartDetails({
   layout: Layouts;
   cart: CartType | null;
 }) {
-  // @todo: get optimistic cart cost
   const cartHasItems = !!cart && cart.totalQuantity > 0;
   const container = {
     drawer: 'grid grid-cols-1 h-screen-no-nav grid-rows-[1fr_auto]',
@@ -63,9 +66,8 @@ export function CartDetails({
     <div className={container[layout]}>
       <CartLines lines={cart?.lines} layout={layout} />
       {cartHasItems && (
-        <CartSummary cost={cart.cost} layout={layout}>
+        <CartSummary cost={cart.cost} lines={cart.lines} layout={layout}>
           <CartDiscounts discountCodes={cart.discountCodes} />
-          <CartCheckoutActions checkoutUrl={cart.checkoutUrl} />
         </CartSummary>
       )}
     </div>
@@ -183,34 +185,25 @@ function CartLines({
   );
 }
 
-function CartCheckoutActions({checkoutUrl}: {checkoutUrl: string}) {
-  if (!checkoutUrl) return null;
-
-  return (
-    <div className="flex flex-col mt-2">
-      <a href={checkoutUrl} target="_self">
-        <Button as="span" width="full">
-          Continue to Checkout
-        </Button>
-      </a>
-      {/* @todo: <CartShopPayButton cart={cart} /> */}
-    </div>
-  );
-}
-
 function CartSummary({
   cost,
+  lines,
   layout,
   children = null,
 }: {
   children?: React.ReactNode;
   cost: CartCost;
+  lines: CartType['lines'] | undefined;
   layout: Layouts;
 }) {
   const summary = {
     drawer: 'grid gap-4 p-6 border-t md:px-12',
     page: 'sticky top-nav grid gap-6 p-4 md:px-6 md:translate-y-4 bg-primary/5 rounded w-full',
   };
+
+  const cartLines = lines ? flattenConnection(lines) : [];
+  const voidSubtotal = computeVoidCartSubtotal(cartLines);
+  const useVoidSubtotal = voidSubtotal && !voidSubtotal.hasNonVoidLines;
 
   return (
     <section aria-labelledby="summary-heading" className={summary[layout]}>
@@ -221,7 +214,14 @@ function CartSummary({
         <div className="flex items-center justify-between font-medium">
           <Text as="dt">Subtotal</Text>
           <Text as="dd" data-test="subtotal">
-            {cost?.subtotalAmount?.amount ? (
+            {useVoidSubtotal ? (
+              <Money
+                data={{
+                  amount: voidSubtotal.amount.toFixed(2),
+                  currencyCode: voidSubtotal.currencyCode,
+                }}
+              />
+            ) : cost?.subtotalAmount?.amount ? (
               <Money data={cost?.subtotalAmount} />
             ) : (
               '-'
@@ -248,6 +248,8 @@ function CartLineItem({line}: {line: CartLine}) {
 
   if (typeof quantity === 'undefined' || !merchandise?.product) return null;
 
+  const voidLine = parseVoidCartLine(line);
+
   return (
     <li
       key={id}
@@ -258,22 +260,36 @@ function CartLineItem({line}: {line: CartLine}) {
         display: optimisticData?.action === 'remove' ? 'none' : 'flex',
       }}
     >
-      <div className="flex-shrink">
-        {merchandise.image && (
-          <Image
-            width={110}
-            height={110}
-            data={merchandise.image}
-            className="object-cover object-center w-24 h-24 border rounded md:w-28 md:h-28"
-            alt={merchandise.title}
+      <div className="shrink-0">
+        {voidLine?.image ? (
+          <img
+            src={voidLine.image}
+            alt={voidLine.imageAlt}
+            width={112}
+            height={112}
+            loading="lazy"
+            decoding="async"
+            className="h-24 w-24 border border-primary/[0.08] object-cover object-center md:h-28 md:w-28"
           />
+        ) : (
+          merchandise.image && (
+            <Image
+              width={110}
+              height={110}
+              data={merchandise.image}
+              className="object-cover object-center w-24 h-24 border rounded md:w-28 md:h-28"
+              alt={merchandise.title}
+            />
+          )
         )}
       </div>
 
-      <div className="flex justify-between flex-grow">
+      <div className="flex flex-grow justify-between gap-4">
         <div className="grid gap-2">
           <Heading as="h3" size="copy">
-            {merchandise?.product?.handle ? (
+            {voidLine ? (
+              <Link to={voidLine.path}>{voidLine.title}</Link>
+            ) : merchandise?.product?.handle ? (
               <Link to={`/products/${merchandise.product.handle}`}>
                 {merchandise?.product?.title || ''}
               </Link>
@@ -282,12 +298,21 @@ function CartLineItem({line}: {line: CartLine}) {
             )}
           </Heading>
 
-          <div className="grid pb-2">
-            {(merchandise?.selectedOptions || []).map((option) => (
-              <Text color="subtle" key={option.name}>
-                {option.name}: {option.value}
-              </Text>
-            ))}
+          <div className="grid gap-1 pb-2">
+            {voidLine ? (
+              <>
+                <Text color="subtle">Size: {voidLine.size}</Text>
+                <Text className="font-sans text-fine uppercase tracking-wide text-primary/70">
+                  {voidLine.displayPrice}
+                </Text>
+              </>
+            ) : (
+              (merchandise?.selectedOptions || []).map((option) => (
+                <Text color="subtle" key={option.name}>
+                  {option.name}: {option.value}
+                </Text>
+              ))
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -297,9 +322,11 @@ function CartLineItem({line}: {line: CartLine}) {
             <ItemRemoveButton lineId={id} />
           </div>
         </div>
-        <Text>
-          <CartLinePrice line={line} as="span" />
-        </Text>
+        {!voidLine && (
+          <Text>
+            <CartLinePrice line={line} as="span" />
+          </Text>
+        )}
       </div>
     </li>
   );
@@ -461,13 +488,7 @@ export function CartEmpty({
         </div>
       </section>
       <section className="grid gap-8 pt-16">
-        <FeaturedProducts
-          count={4}
-          heading="Shop Best Sellers"
-          layout={layout}
-          onClose={onClose}
-          sortKey="BEST_SELLING"
-        />
+        <VoidCartSuggestions count={4} layout={layout} onClose={onClose} />
       </section>
     </div>
   );

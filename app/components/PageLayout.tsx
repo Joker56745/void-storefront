@@ -1,15 +1,20 @@
 import {useParams, Form, Await, useRouteLoaderData} from '@remix-run/react';
-import useWindowScroll from 'react-use/esm/useWindowScroll';
 import {Disclosure} from '@headlessui/react';
 import {Suspense, useEffect, useMemo} from 'react';
 import {CartForm} from '@shopify/hydrogen';
 
 import {type LayoutQuery} from 'storefrontapi.generated';
+import {
+  VOID_FALLBACK_HEADER_MENU,
+  resolveVoidFooterMenu,
+} from '~/data/void-nav-fallback';
+import {BRAND_NAME} from '~/lib/brand';
 import {Text, Heading, Section} from '~/components/Text';
 import {Link} from '~/components/Link';
 import {Cart} from '~/components/Cart';
 import {CartLoading} from '~/components/CartLoading';
 import {Input} from '~/components/Input';
+import {VoidSearchField} from '~/components/VoidSearchField';
 import {Drawer, useDrawer} from '~/components/Drawer';
 import {CountrySelector} from '~/components/CountrySelector';
 import {
@@ -47,14 +52,15 @@ export function PageLayout({children, layout}: LayoutProps) {
             Skip to content
           </a>
         </div>
-        {headerMenu && layout?.shop.name && (
-          <Header title={layout.shop.name} menu={headerMenu} />
-        )}
+        <Header
+          title={BRAND_NAME}
+          menu={headerMenu ?? VOID_FALLBACK_HEADER_MENU}
+        />
         <main role="main" id="mainContent" className="flex-grow">
           {children}
         </main>
+        <Footer menu={resolveVoidFooterMenu(footerMenu)} />
       </div>
-      {footerMenu && <Footer menu={footerMenu} />}
     </>
   );
 }
@@ -147,8 +153,7 @@ function MenuMobileNav({
   onClose: () => void;
 }) {
   return (
-    <nav className="grid gap-4 p-6 sm:gap-6 sm:px-12 sm:py-8">
-      {/* Top level menu items */}
+    <nav className="grid gap-5 p-6 sm:gap-6 sm:px-12 sm:py-10">
       {(menu?.items || []).map((item) => (
         <span key={item.id} className="block">
           <Link
@@ -156,16 +161,29 @@ function MenuMobileNav({
             target={item.target}
             onClick={onClose}
             className={({isActive}) =>
-              isActive ? 'pb-1 border-b -mb-px' : 'pb-1'
+              isActive
+                ? 'void-nav-link void-nav-link--drawer text-primary border-b border-accent pb-1 -mb-px'
+                : 'void-nav-link void-nav-link--drawer pb-1'
             }
           >
-            <Text as="span" size="copy">
-              {item.title}
-            </Text>
+            {item.title}
           </Link>
         </span>
       ))}
     </nav>
+  );
+}
+
+function BrandMark({
+  title,
+  as = 'span',
+}: {
+  title: string;
+  as?: 'h1' | 'h2' | 'span';
+}) {
+  const Tag = as;
+  return (
+    <Tag className="void-brand leading-none select-none">{title}</Tag>
   );
 }
 
@@ -180,66 +198,50 @@ function MobileHeader({
   openCart: () => void;
   openMenu: () => void;
 }) {
-  // useHeaderStyleFix(containerStyle, setContainerStyle, isHome);
-
   const params = useParams();
 
   return (
     <header
       role="banner"
-      className={`${
-        isHome
-          ? 'bg-primary/80 dark:bg-contrast/60 text-contrast dark:text-primary shadow-darkHeader'
-          : 'bg-contrast/80 text-primary'
-      } flex lg:hidden items-center h-nav sticky backdrop-blur-lg z-40 top-0 justify-between w-full leading-none gap-4 px-4 md:px-8`}
+      className="void-header void-header--mobile flex lg:hidden items-center h-nav sticky z-40 top-0 justify-between w-full leading-none gap-2 px-4 sm:gap-3 sm:px-6 md:px-8"
     >
-      <div className="flex items-center justify-start w-full gap-4">
+      <div className="flex min-w-[2.75rem] items-center justify-start">
         <button
+          type="button"
           onClick={openMenu}
-          className="relative flex items-center justify-center w-8 h-8"
+          aria-label="Open menu"
+          className="flex h-11 w-11 items-center justify-center text-primary/70 transition-colors hover:text-primary active:text-primary"
         >
           <IconMenu />
         </button>
-        <Form
-          method="get"
-          action={params.locale ? `/${params.locale}/search` : '/search'}
-          className="items-center gap-2 sm:flex"
-        >
-          <button
-            type="submit"
-            className="relative flex items-center justify-center w-8 h-8"
-          >
-            <IconSearch />
-          </button>
-          <Input
-            className={
-              isHome
-                ? 'focus:border-contrast/20 dark:focus:border-primary/20'
-                : 'focus:border-primary/20'
-            }
-            type="search"
-            variant="minisearch"
-            placeholder="Search"
-            name="q"
-          />
-        </Form>
       </div>
 
       <Link
-        className="flex items-center self-stretch leading-[3rem] md:leading-[4rem] justify-center flex-grow w-full h-full"
+        className="absolute left-1/2 flex max-w-[52vw] -translate-x-1/2 items-center justify-center sm:max-w-none"
         to="/"
+        prefetch="intent"
       >
-        <Heading
-          className="font-bold text-center leading-none"
-          as={isHome ? 'h1' : 'h2'}
-        >
-          {title}
-        </Heading>
+        <BrandMark title={title} as={isHome ? 'h1' : 'h2'} />
       </Link>
 
-      <div className="flex items-center justify-end w-full gap-4">
-        <AccountLink className="relative flex items-center justify-center w-8 h-8" />
-        <CartCount isHome={isHome} openCart={openCart} />
+      <div className="flex min-w-[10.5rem] items-center justify-end gap-0.5 sm:gap-1">
+        <Form
+          method="get"
+          action={params.locale ? `/${params.locale}/search` : '/search'}
+          className="hidden"
+        >
+          <Input type="search" variant="minisearch" placeholder="Search" name="q" />
+        </Form>
+        <Link
+          to={params.locale ? `/${params.locale}/search` : '/search'}
+          prefetch="intent"
+          aria-label="Search"
+          className="void-header-icon-btn"
+        >
+          <IconSearch className="void-header-icon" />
+        </Link>
+        <AccountLink className="void-header-icon-btn" />
+        <CartCount openCart={openCart} />
       </div>
     </header>
   );
@@ -257,65 +259,45 @@ function DesktopHeader({
   title: string;
 }) {
   const params = useParams();
-  const {y} = useWindowScroll();
   return (
     <header
       role="banner"
-      className={`${
-        isHome
-          ? 'bg-primary/80 dark:bg-contrast/60 text-contrast dark:text-primary shadow-darkHeader'
-          : 'bg-contrast/80 text-primary'
-      } ${
-        !isHome && y > 50 && ' shadow-lightHeader'
-      } hidden h-nav lg:flex items-center sticky transition duration-300 backdrop-blur-lg z-40 top-0 justify-between w-full leading-none gap-8 px-12 py-8`}
+      className="void-header hidden h-nav lg:flex items-center sticky z-40 top-0 justify-between w-full leading-none px-10 xl:px-14"
     >
-      <div className="flex gap-12">
-        <Link className="font-bold" to="/" prefetch="intent">
-          {title}
-        </Link>
-        <nav className="flex gap-8">
-          {/* Top level menu items */}
-          {(menu?.items || []).map((item) => (
-            <Link
-              key={item.id}
-              to={item.to}
-              target={item.target}
-              prefetch="intent"
-              className={({isActive}) =>
-                isActive ? 'pb-1 border-b -mb-px' : 'pb-1'
-              }
-            >
-              {item.title}
-            </Link>
-          ))}
-        </nav>
-      </div>
-      <div className="flex items-center gap-1">
-        <Form
-          method="get"
-          action={params.locale ? `/${params.locale}/search` : '/search'}
-          className="flex items-center gap-2"
-        >
-          <Input
-            className={
-              isHome
-                ? 'focus:border-contrast/20 dark:focus:border-primary/20'
-                : 'focus:border-primary/20'
+      <Link to="/" prefetch="intent" className="shrink-0">
+        <BrandMark title={title} as={isHome ? 'h1' : 'h2'} />
+      </Link>
+
+      <nav className="absolute left-1/2 -translate-x-1/2 flex items-center gap-12 xl:gap-14">
+        {(menu?.items || []).map((item) => (
+          <Link
+            key={item.id}
+            to={item.to}
+            target={item.target}
+            prefetch="intent"
+            className={({isActive}) =>
+              isActive
+                ? 'void-nav-link text-primary border-b border-accent pb-0.5 -mb-0.5'
+                : 'void-nav-link'
             }
-            type="search"
-            variant="minisearch"
-            placeholder="Search"
-            name="q"
-          />
-          <button
-            type="submit"
-            className="relative flex items-center justify-center w-8 h-8 focus:ring-primary/5"
           >
-            <IconSearch />
-          </button>
-        </Form>
-        <AccountLink className="relative flex items-center justify-center w-8 h-8 focus:ring-primary/5" />
-        <CartCount isHome={isHome} openCart={openCart} />
+            {item.title}
+          </Link>
+        ))}
+      </nav>
+
+      <div className="void-header-utilities flex shrink-0 items-center gap-1.5 xl:gap-3">
+        <div className="void-header-search w-40 xl:w-48">
+          <VoidSearchField
+            placeholder="Search"
+            variant="minisearch"
+            panelMode="overlay"
+            syncUrl={false}
+            inputClassName="void-header-search-input focus:border-accent/40 w-full border-primary/15 bg-transparent text-left"
+          />
+        </div>
+        <AccountLink className="void-header-icon-btn" />
+        <CartCount openCart={openCart} />
       </div>
     </header>
   );
@@ -327,34 +309,33 @@ function AccountLink({className}: {className?: string}) {
 
   return (
     <Link to="/account" className={className}>
-      <Suspense fallback={<IconLogin />}>
-        <Await resolve={isLoggedIn} errorElement={<IconLogin />}>
-          {(isLoggedIn) => (isLoggedIn ? <IconAccount /> : <IconLogin />)}
+      <Suspense fallback={<IconLogin className="void-header-icon-action" />}>
+        <Await
+          resolve={isLoggedIn}
+          errorElement={<IconLogin className="void-header-icon-action" />}
+        >
+          {(isLoggedIn) =>
+            isLoggedIn ? (
+              <IconAccount className="void-header-icon-action" />
+            ) : (
+              <IconLogin className="void-header-icon-action" />
+            )
+          }
         </Await>
       </Suspense>
     </Link>
   );
 }
 
-function CartCount({
-  isHome,
-  openCart,
-}: {
-  isHome: boolean;
-  openCart: () => void;
-}) {
+function CartCount({openCart}: {openCart: () => void}) {
   const rootData = useRouteLoaderData<RootLoader>('root');
   if (!rootData) return null;
 
   return (
-    <Suspense fallback={<Badge count={0} dark={isHome} openCart={openCart} />}>
+    <Suspense fallback={<Badge count={0} openCart={openCart} />}>
       <Await resolve={rootData?.cart}>
         {(cart) => (
-          <Badge
-            dark={isHome}
-            openCart={openCart}
-            count={cart?.totalQuantity || 0}
-          />
+          <Badge openCart={openCart} count={cart?.totalQuantity || 0} />
         )}
       </Await>
     </Suspense>
@@ -363,11 +344,9 @@ function CartCount({
 
 function Badge({
   openCart,
-  dark,
   count,
 }: {
   count: number;
-  dark: boolean;
   openCart: () => void;
 }) {
   const isHydrated = useIsHydrated();
@@ -375,33 +354,25 @@ function Badge({
   const BadgeCounter = useMemo(
     () => (
       <>
-        <IconBag />
-        <div
-          className={`${
-            dark
-              ? 'text-primary bg-contrast dark:text-contrast dark:bg-primary'
-              : 'text-contrast bg-primary'
-          } absolute bottom-1 right-1 text-[0.625rem] font-medium subpixel-antialiased h-3 min-w-[0.75rem] flex items-center justify-center leading-none text-center rounded-full w-auto px-[0.125rem] pb-px`}
-        >
-          <span>{count || 0}</span>
-        </div>
+        <IconBag className="void-header-icon-action" />
+        {count > 0 && (
+          <div className="void-header-cart-count" aria-hidden>
+            <span>{count}</span>
+          </div>
+        )}
       </>
     ),
-    [count, dark],
+    [count],
   );
 
+  const className = 'void-header-icon-btn relative';
+
   return isHydrated ? (
-    <button
-      onClick={openCart}
-      className="relative flex items-center justify-center w-8 h-8 focus:ring-primary/5"
-    >
+    <button type="button" onClick={openCart} aria-label="Cart" className={className}>
       {BadgeCounter}
     </button>
   ) : (
-    <Link
-      to="/cart"
-      className="relative flex items-center justify-center w-8 h-8 focus:ring-primary/5"
-    >
+    <Link to="/cart" aria-label="Cart" className={className}>
       {BadgeCounter}
     </Link>
   );
@@ -420,16 +391,16 @@ function Footer({menu}: {menu?: EnhancedMenu}) {
       divider={isHome ? 'none' : 'top'}
       as="footer"
       role="contentinfo"
-      className={`grid min-h-[25rem] items-start grid-flow-row w-full gap-6 py-8 px-6 md:px-8 lg:px-12 md:gap-8 lg:gap-12 grid-cols-1 md:grid-cols-2 lg:grid-cols-${itemsCount}
-        bg-primary dark:bg-contrast dark:text-primary text-contrast overflow-hidden`}
+      className={`grid items-start grid-flow-row w-full gap-6 px-6 md:px-8 lg:px-12 md:gap-8 lg:gap-12 grid-cols-1 md:grid-cols-2 lg:grid-cols-${itemsCount}
+        bg-surface text-primary/70 border-t border-primary/[0.06] overflow-visible
+        ${isHome ? 'void-footer-home py-10 md:py-12' : 'min-h-[25rem] py-8'}`}
     >
       <FooterMenu menu={menu} />
       <CountrySelector />
       <div
         className={`self-end pt-8 opacity-50 md:col-span-2 lg:col-span-${itemsCount}`}
       >
-        &copy; {new Date().getFullYear()} / Shopify, Inc. Hydrogen is an MIT
-        Licensed Open Source project.
+        &copy; {new Date().getFullYear()} {BRAND_NAME}
       </div>
     </Section>
   );

@@ -5,6 +5,12 @@ import {vitePlugin as remix} from '@remix-run/dev';
 import tsconfigPaths from 'vite-tsconfig-paths';
 
 export default defineConfig({
+  server: {
+    host: true,
+    port: 3000,
+    // Fail loudly instead of silently using another port while :3000 serves a broken process
+    strictPort: true,
+  },
   plugins: [
     hydrogen(),
     oxygen(),

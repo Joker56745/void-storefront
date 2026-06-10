@@ -1,6 +1,6 @@
 import {Button} from './Button';
-import {FeaturedSection} from './FeaturedSection';
 import {PageHeader, Text} from './Text';
+import {VoidCartSuggestions} from './VoidCartSuggestions';
 
 export function NotFound({type = 'page'}: {type?: string}) {
   const heading = `We’ve lost this ${type}`;
@@ -16,7 +16,9 @@ export function NotFound({type = 'page'}: {type?: string}) {
           Take me to the home page
         </Button>
       </PageHeader>
-      <FeaturedSection />
+      <div className="px-6 pb-16 md:px-14 lg:px-20">
+        <VoidCartSuggestions layout="page" count={4} />
+      </div>
     </>
   );
 }

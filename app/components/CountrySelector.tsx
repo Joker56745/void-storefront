@@ -9,7 +9,8 @@ import {Button} from '~/components/Button';
 import {Heading} from '~/components/Text';
 import {IconCheck} from '~/components/Icon';
 import type {Localizations, Locale} from '~/lib/type';
-import {DEFAULT_LOCALE} from '~/lib/utils';
+import {countries as ALL_COUNTRIES} from '~/data/countries';
+import {DEFAULT_LOCALE, usePrefixPathWithLocale} from '~/lib/utils';
 import type {RootLoader} from '~/root';
 
 export function CountrySelector() {
@@ -23,7 +24,8 @@ export function CountrySelector() {
     '',
   )}${search}`;
 
-  const countries = (fetcher.data ?? {}) as Localizations;
+  const countriesApiPath = usePrefixPathWithLocale('/api/countries');
+  const countries = (fetcher.data ?? ALL_COUNTRIES) as Localizations;
   const defaultLocale = countries?.['default'];
   const defaultLocalePrefix = defaultLocale
     ? `${defaultLocale?.language}-${defaultLocale?.country}`
@@ -42,8 +44,8 @@ export function CountrySelector() {
   // Get available countries list when in view
   useEffect(() => {
     if (!inView || fetcher.data || fetcher.state === 'loading') return;
-    fetcher.load('/api/countries');
-  }, [inView, fetcher]);
+    fetcher.load(countriesApiPath);
+  }, [countriesApiPath, inView, fetcher]);
 
   const closeDropdown = useCallback(() => {
     closeRef.current?.removeAttribute('open');
@@ -52,23 +54,25 @@ export function CountrySelector() {
   return (
     <section
       ref={observerRef}
-      className="grid w-full gap-4"
+      className="void-country-selector relative z-20 grid w-full gap-4 overflow-visible"
       onMouseLeave={closeDropdown}
     >
       <Heading size="lead" className="cursor-default" as="h3">
         Country
       </Heading>
-      <div className="relative">
+      <div className="relative w-full">
         <details
-          className="absolute w-full border rounded border-contrast/30 dark:border-white open:round-b-none overflow-clip"
+          className="group relative w-full overflow-visible"
           ref={closeRef}
         >
-          <summary className="flex items-center justify-between w-full px-4 py-3 cursor-pointer">
+          <summary className="void-country-selector-trigger flex w-full cursor-pointer list-none items-center justify-between rounded border border-primary/15 bg-primary/[0.03] px-4 py-3 font-sans text-sm text-primary/85 transition-colors hover:border-primary/25 [&::-webkit-details-marker]:hidden">
             {selectedLocale.label}
           </summary>
-          <div className="w-full overflow-auto border-t border-contrast/30 dark:border-white bg-contrast/30 max-h-36">
+          <div className="void-country-selector-panel absolute bottom-full left-0 right-0 z-50 mb-2 max-h-[min(14rem,45vh)] w-full overflow-auto rounded border border-primary/15 bg-[#0a0a0a] shadow-[0_-8px_32px_rgb(0_0_0/0.55)]">
             {countries &&
-              Object.keys(countries).map((countryPath) => {
+              Object.keys(countries)
+                .filter((countryPath) => countryPath !== 'default')
+                .map((countryPath) => {
                 const countryLocale = countries[countryPath];
                 const isSelected =
                   countryLocale.language === selectedLocale.language &&

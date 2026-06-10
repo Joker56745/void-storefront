@@ -3,7 +3,6 @@ import {flattenConnection, Image, Money, useMoney} from '@shopify/hydrogen';
 import type {MoneyV2, Product} from '@shopify/hydrogen/storefront-api-types';
 
 import type {ProductCardFragment} from 'storefrontapi.generated';
-import {Text} from '~/components/Text';
 import {Link} from '~/components/Link';
 import {Button} from '~/components/Button';
 import {AddToCartButton} from '~/components/AddToCartButton';
@@ -46,77 +45,69 @@ export function ProductCard({
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <article className={clsx('void-product-card group', className)}>
       <Link
         onClick={onClick}
         to={`/products/${product.handle}`}
         prefetch="viewport"
+        className="block"
       >
-        <div className={clsx('grid gap-4', className)}>
-          <div className="card-image aspect-[4/5] bg-primary/5">
-            {image && (
-              <Image
-                className="object-cover w-full fadeIn"
-                sizes="(min-width: 64em) 25vw, (min-width: 48em) 30vw, 45vw"
-                aspectRatio="4/5"
-                data={image}
-                alt={image.altText || `Picture of ${product.title}`}
-                loading={loading}
+        <div className="void-product-media relative aspect-[4/5] overflow-hidden bg-[#0A0A0A]">
+          {image ? (
+            <Image
+              className="absolute inset-0 h-full w-full object-cover object-center"
+              sizes="(min-width: 64em) 22vw, (min-width: 48em) 30vw, 46vw"
+              data={image}
+              alt={image.altText || product.title}
+              loading={loading}
+              width={image.width ?? undefined}
+              height={image.height ?? undefined}
+            />
+          ) : (
+            <div className="h-full w-full bg-primary/[0.02]" />
+          )}
+          {cardLabel && (
+            <span className="void-product-label absolute left-0 top-0 px-3 py-3">
+              {cardLabel}
+            </span>
+          )}
+        </div>
+
+        <div className="void-product-meta mt-6 md:mt-8">
+          <h3 className="void-product-title">{product.title}</h3>
+          <div className="mt-2 flex items-baseline gap-4">
+            <span className="void-product-price">
+              <Money withoutTrailingZeros data={price!} />
+            </span>
+            {isDiscounted(price as MoneyV2, compareAtPrice as MoneyV2) && (
+              <CompareAtPrice
+                className="void-product-price void-product-price--struck"
+                data={compareAtPrice as MoneyV2}
               />
             )}
-            <Text
-              as="label"
-              size="fine"
-              className="absolute top-0 right-0 m-4 text-right text-notice"
-            >
-              {cardLabel}
-            </Text>
-          </div>
-          <div className="grid gap-1">
-            <Text
-              className="w-full overflow-hidden whitespace-nowrap text-ellipsis "
-              as="h3"
-            >
-              {product.title}
-            </Text>
-            <div className="flex gap-4">
-              <Text className="flex gap-4">
-                <Money withoutTrailingZeros data={price!} />
-                {isDiscounted(price as MoneyV2, compareAtPrice as MoneyV2) && (
-                  <CompareAtPrice
-                    className={'opacity-50'}
-                    data={compareAtPrice as MoneyV2}
-                  />
-                )}
-              </Text>
-            </div>
           </div>
         </div>
       </Link>
+
       {quickAdd && firstVariant.availableForSale && (
         <AddToCartButton
-          lines={[
-            {
-              quantity: 1,
-              merchandiseId: firstVariant.id,
-            },
-          ]}
+          lines={[{quantity: 1, merchandiseId: firstVariant.id}]}
           variant="secondary"
-          className="mt-2"
+          className="mt-5 w-full rounded-none border-primary/[0.08] bg-transparent text-fine uppercase tracking-[0.2em] text-primary/50 hover:border-primary/20 hover:text-primary/80"
         >
-          <Text as="span" className="flex items-center justify-center gap-2">
-            Add to Cart
-          </Text>
+          Add to Cart
         </AddToCartButton>
       )}
       {quickAdd && !firstVariant.availableForSale && (
-        <Button variant="secondary" className="mt-2" disabled>
-          <Text as="span" className="flex items-center justify-center gap-2">
-            Sold out
-          </Text>
+        <Button
+          variant="secondary"
+          className="mt-5 w-full rounded-none border-primary/[0.08] bg-transparent text-fine uppercase tracking-[0.2em] text-primary/30"
+          disabled
+        >
+          Sold out
         </Button>
       )}
-    </div>
+    </article>
   );
 }
 
@@ -130,10 +121,8 @@ function CompareAtPrice({
   const {currencyNarrowSymbol, withoutTrailingZerosAndCurrency} =
     useMoney(data);
 
-  const styles = clsx('strike', className);
-
   return (
-    <span className={styles}>
+    <span className={clsx('void-price-strike', className)}>
       {currencyNarrowSymbol}
       {withoutTrailingZerosAndCurrency}
     </span>

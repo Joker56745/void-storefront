@@ -20,6 +20,14 @@ import type {
   WebPage,
 } from 'schema-dts';
 
+import {
+  VOID_COLLECTION_PATH,
+  VOID_COLLECTION_TITLE,
+  VOID_HERO_IMAGE,
+  VOID_PRODUCTS,
+  type VoidProductDetail,
+} from '~/data/void-catalog';
+import {BRAND_NAME, BRAND_TAGLINE} from '~/lib/brand';
 import type {ShopFragment} from 'storefrontapi.generated';
 
 function root({
@@ -30,10 +38,10 @@ function root({
   url: Request['url'];
 }): SeoConfig {
   return {
-    title: shop?.name,
-    titleTemplate: '%s | Hydrogen Demo Store',
-    description: truncate(shop?.description ?? ''),
-    handle: '@shopify',
+    title: BRAND_NAME,
+    titleTemplate: `%s | ${BRAND_NAME}`,
+    description: truncate(shop?.description ?? BRAND_TAGLINE),
+    handle: '@void',
     url,
     robots: {
       noIndex: false,
@@ -42,7 +50,7 @@ function root({
     jsonLd: {
       '@context': 'https://schema.org',
       '@type': 'Organization',
-      name: shop.name,
+      name: BRAND_NAME,
       logo: shop.brand?.logo?.image?.url,
       sameAs: [
         'https://twitter.com/shopify',
@@ -62,19 +70,28 @@ function root({
 }
 
 function home({url}: {url: Request['url']}): SeoConfig {
+  const origin = new URL(url).origin;
+
   return {
     title: 'Home',
-    titleTemplate: '%s | Hydrogen Demo Store',
-    description: 'The best place to buy snowboarding products',
+    titleTemplate: `%s | ${BRAND_NAME}`,
+    description: BRAND_TAGLINE,
     url,
+    media: voidSeoImageMedia({
+      origin,
+      src: VOID_HERO_IMAGE,
+      altText: `${BRAND_NAME} — ${BRAND_TAGLINE}`,
+    }),
     robots: {
       noIndex: false,
       noFollow: false,
     },
     jsonLd: {
       '@context': 'https://schema.org',
-      '@type': 'WebPage',
-      name: 'Home page',
+      '@type': 'WebSite',
+      name: BRAND_NAME,
+      description: BRAND_TAGLINE,
+      url: origin,
     },
   };
 }
@@ -460,6 +477,302 @@ function policies({
   };
 }
 
+function voidLocalePrefix(pathname: string): string {
+  const match = pathname.match(/^\/([a-z]{2}-[a-z]{2})(?=\/|$)/i);
+  return match ? `/${match[1]}` : '';
+}
+
+function voidAbsoluteAsset(origin: string, src: string): string {
+  if (src.startsWith('http://') || src.startsWith('https://')) return src;
+  return `${origin}${src.startsWith('/') ? src : `/${src}`}`;
+}
+
+function voidSeoImageMedia({
+  origin,
+  src,
+  altText,
+  width = 1200,
+  height = 1500,
+}: {
+  origin: string;
+  src: string;
+  altText: string;
+  width?: number;
+  height?: number;
+}): SeoConfig['media'] {
+  return {
+    type: 'image',
+    url: voidAbsoluteAsset(origin, src),
+    width,
+    height,
+    altText,
+  };
+}
+
+function parseVoidPrice(
+  price: string,
+): {amount: number; currencyCode: 'USD'} | null {
+  const match = price.replace(/,/g, '').match(/\$([\d.]+)/);
+  if (!match) return null;
+  return {amount: parseFloat(match[1]), currencyCode: 'USD'};
+}
+
+function voidCollectionUrl(origin: string, pathname: string): string {
+  const prefix = voidLocalePrefix(pathname);
+  return `${origin}${prefix}${VOID_COLLECTION_PATH}`;
+}
+
+function voidCollectionJsonLd({url}: {url: Request['url']}): SeoConfig['jsonLd'] {
+  const {origin, pathname} = new URL(url);
+  const collectionUrl = voidCollectionUrl(origin, pathname);
+
+  return [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        {
+          '@type': 'ListItem',
+          position: 1,
+          name: 'Home',
+          item: origin,
+        },
+        {
+          '@type': 'ListItem',
+          position: 2,
+          name: VOID_COLLECTION_TITLE,
+          item: collectionUrl,
+        },
+      ],
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'CollectionPage',
+      name: VOID_COLLECTION_TITLE,
+      description: BRAND_TAGLINE,
+      url: collectionUrl,
+      isPartOf: {
+        '@type': 'WebSite',
+        name: BRAND_NAME,
+        url: origin,
+      },
+      mainEntity: {
+        '@type': 'ItemList',
+        numberOfItems: VOID_PRODUCTS.length,
+        itemListElement: VOID_PRODUCTS.map((item, index) => ({
+          '@type': 'ListItem',
+          position: index + 1,
+          name: item.title,
+          url: voidAbsoluteAsset(origin, item.handle),
+        })),
+      },
+    },
+  ];
+}
+
+function voidProductJsonLd({
+  product,
+  url,
+}: {
+  product: VoidProductDetail;
+  url: Request['url'];
+}): SeoConfig['jsonLd'] {
+  const {origin, pathname} = new URL(url);
+  const canonicalUrl = new URL(url);
+  canonicalUrl.search = '';
+  canonicalUrl.hash = '';
+  const productUrl = canonicalUrl.toString();
+  const collectionUrl = voidCollectionUrl(origin, pathname);
+
+  const images = [
+    ...new Set([
+      voidAbsoluteAsset(origin, product.image),
+      ...product.gallery.map((image) => voidAbsoluteAsset(origin, image.src)),
+    ]),
+  ];
+
+  const price = parseVoidPrice(product.price);
+  const offers: Offer[] = product.sizes.map((size) => {
+    const sizeUrl = new URL(productUrl);
+    sizeUrl.searchParams.set('size', size);
+
+    return {
+      '@type': 'Offer',
+      availability: 'https://schema.org/InStock',
+      price: price?.amount,
+      priceCurrency: price?.currencyCode ?? 'USD',
+      url: sizeUrl.toString(),
+      sku: `${product.slug}-${size}`,
+      seller: {
+        '@type': 'Organization',
+        name: BRAND_NAME,
+      },
+    };
+  });
+
+  return [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        {
+          '@type': 'ListItem',
+          position: 1,
+          name: 'Home',
+          item: origin,
+        },
+        {
+          '@type': 'ListItem',
+          position: 2,
+          name: VOID_COLLECTION_TITLE,
+          item: collectionUrl,
+        },
+        {
+          '@type': 'ListItem',
+          position: 3,
+          name: product.title,
+          item: productUrl,
+        },
+      ],
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'Product',
+      '@id': productUrl,
+      url: productUrl,
+      name: product.title,
+      description: truncate(product.longDescription, 320),
+      image: images,
+      sku: product.slug,
+      category: 'Apparel',
+      color: 'Black',
+      material: product.material,
+      brand: {
+        '@type': 'Brand',
+        name: BRAND_NAME,
+      },
+      offers,
+    },
+  ];
+}
+
+function voidSearch({
+  url,
+  searchTerm,
+  resultCount,
+}: {
+  url: Request['url'];
+  searchTerm: string;
+  resultCount: number;
+}): SeoConfig {
+  const title = searchTerm ? `Search: ${searchTerm}` : 'Search';
+
+  return {
+    title,
+    titleTemplate: `%s | ${BRAND_NAME}`,
+    description: searchTerm
+      ? truncate(
+          resultCount > 0
+            ? `${resultCount} piece${resultCount === 1 ? '' : 's'} in Core Collection for “${searchTerm}”.`
+            : `No pieces matched “${searchTerm}” in Core Collection.`,
+        )
+      : truncate('Search the VØID Core Collection.'),
+    url,
+    robots: {
+      noIndex: true,
+      noFollow: false,
+    },
+  };
+}
+
+function voidJournal({url}: {url: Request['url']}): SeoConfig {
+  const {origin} = new URL(url);
+
+  return {
+    title: 'Journal',
+    titleTemplate: `%s | ${BRAND_NAME}`,
+    description: truncate(
+      'Editorial field notes and lookbooks from VØID. Core Collection drops and process — coming soon.',
+    ),
+    url,
+    media: voidSeoImageMedia({
+      origin,
+      src: VOID_HERO_IMAGE,
+      altText: `${BRAND_NAME} Journal`,
+    }),
+    robots: {
+      noIndex: false,
+      noFollow: false,
+    },
+    jsonLd: {
+      '@context': 'https://schema.org',
+      '@type': 'Blog',
+      name: 'Journal',
+      description: BRAND_TAGLINE,
+      url,
+      publisher: {
+        '@type': 'Organization',
+        name: BRAND_NAME,
+      },
+    },
+  };
+}
+
+function voidCollection({url}: {url: Request['url']}): SeoConfig {
+  const {origin, pathname} = new URL(url);
+  const collectionUrl = voidCollectionUrl(origin, pathname);
+  const leadImage = VOID_PRODUCTS[0]?.image ?? VOID_HERO_IMAGE;
+
+  return {
+    title: VOID_COLLECTION_TITLE,
+    titleTemplate: `%s | ${BRAND_NAME}`,
+    description: truncate(
+      'Dark techwear essentials — shell, hoodie, cargo, boots, and tee. Brutalist silhouettes in black and charcoal.',
+    ),
+    url: collectionUrl,
+    media: voidSeoImageMedia({
+      origin,
+      src: leadImage,
+      altText: `${VOID_COLLECTION_TITLE} — ${BRAND_NAME}`,
+    }),
+    robots: {
+      noIndex: false,
+      noFollow: false,
+    },
+    jsonLd: voidCollectionJsonLd({url}),
+  };
+}
+
+function voidProduct({
+  product,
+  url,
+}: {
+  product: VoidProductDetail;
+  url: Request['url'];
+}): SeoConfig {
+  const {origin} = new URL(url);
+  const canonicalUrl = new URL(url);
+  canonicalUrl.search = '';
+  canonicalUrl.hash = '';
+
+  return {
+    title: product.title,
+    titleTemplate: `%s | ${BRAND_NAME}`,
+    description: truncate(product.longDescription),
+    url: canonicalUrl.toString(),
+    media: voidSeoImageMedia({
+      origin,
+      src: product.image,
+      altText: product.imageAlt,
+    }),
+    robots: {
+      noIndex: false,
+      noFollow: false,
+    },
+    jsonLd: voidProductJsonLd({product, url}),
+  };
+}
+
 export const seoPayload = {
   article,
   blog,
@@ -471,6 +784,10 @@ export const seoPayload = {
   policy,
   product,
   root,
+  voidCollection,
+  voidJournal,
+  voidProduct,
+  voidSearch,
 };
 
 /**

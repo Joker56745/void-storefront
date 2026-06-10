@@ -29,10 +29,19 @@ import {PageLayout} from '~/components/PageLayout';
 import {GenericError} from '~/components/GenericError';
 import {NotFound} from '~/components/NotFound';
 import favicon from '~/assets/favicon.svg';
+import {BRAND_COLORS, BRAND_NAME, BRAND_TAGLINE} from '~/lib/brand';
 import {seoPayload} from '~/lib/seo.server';
 import styles from '~/styles/app.css?url';
+import customFontStyles from '~/styles/custom-font.css?url';
 
-import {DEFAULT_LOCALE, parseMenu} from './lib/utils';
+import {VOID_COLLECTION_PATH} from '~/data/void-catalog';
+import {
+  VOID_FALLBACK_FOOTER_MENU,
+  VOID_FALLBACK_HEADER_MENU,
+  resolveVoidFooterMenu,
+} from '~/data/void-nav-fallback';
+
+import {DEFAULT_LOCALE, parseMenu, type EnhancedMenu} from './lib/utils';
 
 export type RootLoader = typeof loader;
 
@@ -74,6 +83,14 @@ export const links: LinksFunction = () => {
       rel: 'preconnect',
       href: 'https://shop.app',
     },
+    {
+      rel: 'preconnect',
+      href: 'https://images.unsplash.com',
+    },
+    {
+      rel: 'preconnect',
+      href: 'https://placehold.co',
+    },
     {rel: 'icon', type: 'image/svg+xml', href: favicon},
   ];
 };
@@ -101,7 +118,10 @@ async function loadCriticalData({request, context}: LoaderFunctionArgs) {
     // Add other queries here, so that they are loaded in parallel
   ]);
 
-  const seo = seoPayload.root({shop: layout.shop, url: request.url});
+  const seo = seoPayload.root({
+    shop: {...layout.shop, name: BRAND_NAME},
+    url: request.url,
+  });
 
   const {storefront, env} = context;
 
@@ -136,7 +156,10 @@ function loadDeferredData({context}: LoaderFunctionArgs) {
 }
 
 export const meta = ({data}: MetaArgs<typeof loader>) => {
-  return getSeoMeta(data!.seo as SeoConfig);
+  if (!data?.seo) {
+    return [{title: BRAND_NAME}];
+  }
+  return getSeoMeta(data.seo as SeoConfig);
 };
 
 function Layout({children}: {children?: React.ReactNode}) {
@@ -145,12 +168,18 @@ function Layout({children}: {children?: React.ReactNode}) {
   const locale = data?.selectedLocale ?? DEFAULT_LOCALE;
 
   return (
-    <html lang={locale.language}>
+    <html lang={locale.language} className="void">
       <head>
         <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1, viewport-fit=cover"
+        />
+        <meta name="color-scheme" content="dark" />
+        <meta name="theme-color" content={BRAND_COLORS.bg} />
         <meta name="msvalidate.01" content="A352E6A0AF9A652267361BBB572B8468" />
-        <link rel="stylesheet" href={styles}></link>
+        <link rel="stylesheet" href={customFontStyles} />
+        <link rel="stylesheet" href={styles} />
         <Meta />
         <Links />
       </head>
@@ -273,44 +302,98 @@ const LAYOUT_QUERY = `#graphql
   }
 ` as const;
 
-async function getLayoutData({storefront, env}: AppLoadContext) {
-  const data = await storefront.query(LAYOUT_QUERY, {
-    variables: {
-      headerMenuHandle: 'main-menu',
-      footerMenuHandle: 'footer',
-      language: storefront.i18n.language,
+function voidFallbackLayout() {
+  return {
+    shop: {
+      id: 'void-fallback-shop',
+      name: BRAND_NAME,
+      description: BRAND_TAGLINE,
+      primaryDomain: {url: 'https://hydrogen-preview.myshopify.com'},
+      brand: null,
     },
-  });
+    headerMenu: VOID_FALLBACK_HEADER_MENU,
+    footerMenu: VOID_FALLBACK_FOOTER_MENU,
+  };
+}
 
-  invariant(data, 'No data returned from Shopify API');
+async function getLayoutData({storefront, env}: AppLoadContext) {
+  try {
+    const data = await storefront.query(LAYOUT_QUERY, {
+      variables: {
+        headerMenuHandle: 'main-menu',
+        footerMenuHandle: 'footer',
+        language: storefront.i18n.language,
+      },
+    });
 
-  /*
-    Modify specific links/routes (optional)
-    @see: https://shopify.dev/api/storefront/unstable/enums/MenuItemType
-    e.g here we map:
-      - /blogs/news -> /news
-      - /blog/news/blog-post -> /news/blog-post
-      - /collections/all -> /products
-  */
-  const customPrefixes = {BLOG: '', CATALOG: 'products'};
+    if (!data?.shop) {
+      return voidFallbackLayout();
+    }
 
-  const headerMenu = data?.headerMenu
-    ? parseMenu(
-        data.headerMenu,
-        data.shop.primaryDomain.url,
-        env,
-        customPrefixes,
-      )
-    : undefined;
+    /*
+      Modify specific links/routes (optional)
+      @see: https://shopify.dev/api/storefront/unstable/enums/MenuItemType
+      e.g here we map:
+        - /blogs/news -> /news
+        - /blog/news/blog-post -> /news/blog-post
+        - /collections/all -> /products
+    */
+    const customPrefixes = {BLOG: '', CATALOG: 'products'};
 
-  const footerMenu = data?.footerMenu
-    ? parseMenu(
-        data.footerMenu,
-        data.shop.primaryDomain.url,
-        env,
-        customPrefixes,
-      )
-    : undefined;
+    const headerMenu = remapVoidNavMenu(
+      data?.headerMenu
+        ? parseMenu(
+            data.headerMenu,
+            data.shop.primaryDomain.url,
+            env,
+            customPrefixes,
+          )
+        : undefined,
+    );
 
-  return {shop: data.shop, headerMenu, footerMenu};
+    const footerMenu = remapVoidNavMenu(
+      data?.footerMenu
+        ? parseMenu(
+            data.footerMenu,
+            data.shop.primaryDomain.url,
+            env,
+            customPrefixes,
+          )
+        : undefined,
+    );
+
+    return {
+      shop: data.shop,
+      headerMenu: headerMenu ?? VOID_FALLBACK_HEADER_MENU,
+      footerMenu: resolveVoidFooterMenu(footerMenu),
+    };
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Storefront layout query failed', error);
+    return voidFallbackLayout();
+  }
+}
+
+/** Point legacy demo menu paths at VØID routes. */
+function remapVoidNavMenu(menu: EnhancedMenu | null | undefined) {
+  if (!menu) return undefined;
+
+  const remapTo = (to: string) => {
+    if (to === '/products' || to === '/collections/all') {
+      return VOID_COLLECTION_PATH;
+    }
+    return to;
+  };
+
+  return {
+    ...menu,
+    items: menu.items.map((item) => ({
+      ...item,
+      to: remapTo(item.to),
+      items: item.items?.map((child) => ({
+        ...child,
+        to: remapTo(child.to),
+      })),
+    })),
+  };
 }
