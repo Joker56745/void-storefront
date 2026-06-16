@@ -509,14 +509,6 @@ function voidSeoImageMedia({
   };
 }
 
-function parseVoidPrice(
-  price: string,
-): {amount: number; currencyCode: 'USD'} | null {
-  const match = price.replace(/,/g, '').match(/\$([\d.]+)/);
-  if (!match) return null;
-  return {amount: parseFloat(match[1]), currencyCode: 'USD'};
-}
-
 function voidCollectionUrl(origin: string, pathname: string): string {
   const prefix = voidLocalePrefix(pathname);
   return `${origin}${prefix}${VOID_COLLECTION_PATH}`;
@@ -591,7 +583,7 @@ function voidProductJsonLd({
     ]),
   ];
 
-  const price = parseVoidPrice(product.price);
+  const price = {amount: product.priceUsd, currencyCode: 'USD' as const};
   const offers: Offer[] = product.sizes.map((size) => {
     const sizeUrl = new URL(productUrl);
     sizeUrl.searchParams.set('size', size);
@@ -599,8 +591,8 @@ function voidProductJsonLd({
     return {
       '@type': 'Offer',
       availability: 'https://schema.org/InStock',
-      price: price?.amount,
-      priceCurrency: price?.currencyCode ?? 'USD',
+      price: price.amount,
+      priceCurrency: price.currencyCode,
       url: sizeUrl.toString(),
       sku: `${product.slug}-${size}`,
       seller: {

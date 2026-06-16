@@ -41,7 +41,7 @@ import {
   resolveVoidFooterMenu,
 } from '~/data/void-nav-fallback';
 
-import {DEFAULT_LOCALE, parseMenu, type EnhancedMenu} from './lib/utils';
+import {DEFAULT_LOCALE, getLocaleFromRequest, parseMenu, type EnhancedMenu} from './lib/utils';
 
 export type RootLoader = typeof loader;
 
@@ -137,7 +137,7 @@ async function loadCriticalData({request, context}: LoaderFunctionArgs) {
       storefrontAccessToken: env.PUBLIC_STOREFRONT_API_TOKEN,
       withPrivacyBanner: true,
     },
-    selectedLocale: storefront.i18n,
+    selectedLocale: getLocaleFromRequest(request),
   };
 }
 

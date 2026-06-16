@@ -12,9 +12,25 @@ import type {AppSession} from '~/lib/session.server';
 
 declare global {
   /**
+   * Netlify Edge Functions expose env vars via this global at runtime.
+   */
+  const Netlify: {
+    env: {
+      toObject(): Record<string, string | undefined>;
+    };
+  };
+
+  /**
    * A global `process` object is only available during build to access NODE_ENV.
    */
   const process: {env: {NODE_ENV: 'production' | 'development'}};
+
+  /**
+   * Minimal execution context used by Hydrogen on Netlify Edge.
+   */
+  interface ExecutionContext {
+    waitUntil(promise: Promise<unknown>): void;
+  }
 
   /**
    * Declare expected Env parameter in fetch handler.

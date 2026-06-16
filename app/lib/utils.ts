@@ -269,6 +269,19 @@ export function getLocaleFromRequest(request: Request): I18nLocale {
       };
 }
 
+/**
+ * Validates the ($locale) route param against the locale inferred from the URL.
+ * Supports custom path prefixes such as /en-eu (EUR) that differ from language-country.
+ */
+export function assertLocaleParam(request: Request, localeParam?: string) {
+  const {pathPrefix} = getLocaleFromRequest(request);
+  const expectedParam = pathPrefix ? pathPrefix.slice(1) : undefined;
+
+  if (localeParam?.toLowerCase() !== expectedParam?.toLowerCase()) {
+    throw new Response(null, {status: 404});
+  }
+}
+
 export function usePrefixPathWithLocale(path: string) {
   const rootData = useRouteLoaderData<RootLoader>('root');
   const selectedLocale = rootData?.selectedLocale ?? DEFAULT_LOCALE;

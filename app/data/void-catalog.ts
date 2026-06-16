@@ -8,7 +8,8 @@ export type VoidPlaceholderProduct = {
   title: string;
   description: string;
   material: string;
-  price: string;
+  /** Base list price in USD for display conversion. */
+  priceUsd: number;
   handle: string;
   image: string;
   imageAlt: string;
@@ -93,7 +94,7 @@ export const VOID_PRODUCTS: VoidProductDetail[] = [
     longDescription:
       'Three-layer waterproof shell engineered for urban transit and alpine egress. Matte ripstop face with welded construction and storm-rated hood geometry.',
     material: 'Nylon ripstop · DWR',
-    price: '$1,890',
+    priceUsd: 1890,
     handle: '/void/shell-jacket',
     image: `${asset('shell-01-front.jpg')}?v=5`,
     imageAlt:
@@ -166,7 +167,7 @@ export const VOID_PRODUCTS: VoidProductDetail[] = [
     longDescription:
       'Garment-dyed heavyweight fleece with dropped shoulder block and raw-edge hem. Built for layering under shell systems without bulk at the neckline.',
     material: 'Heavy cotton · Garment dyed',
-    price: '$480',
+    priceUsd: 480,
     handle: '/void/heavy-hoodie',
     image: `${asset('hoodie-01-front.jpg')}?v=5`,
     imageAlt:
@@ -239,7 +240,7 @@ export const VOID_PRODUCTS: VoidProductDetail[] = [
     longDescription:
       'Slim-straight tactical pant with articulated knee panel and concealed cargo volume. Cotton-nylon canvas with matte oxide hardware throughout.',
     material: 'Cotton-nylon canvas',
-    price: '$620',
+    priceUsd: 620,
     handle: '/void/cargo-pant',
     image: img('cargo-01-front.jpg'),
     imageAlt:
@@ -312,7 +313,7 @@ export const VOID_PRODUCTS: VoidProductDetail[] = [
     longDescription:
       'Full-grain leather combat boot on commando rubber unit. Goodyear welted for resole cycles. Matte hardware and blind eyelets.',
     material: 'Leather · Rubber commando sole',
-    price: '$740',
+    priceUsd: 740,
     handle: '/void/combat-boot',
     image: img('boot-01-front.jpg'),
     imageAlt:
@@ -385,7 +386,7 @@ export const VOID_PRODUCTS: VoidProductDetail[] = [
     longDescription:
       'Supima cotton tee with relaxed block and bound neckline. Enzyme washed for a muted hand-feel. Zero exterior branding.',
     material: 'Supima cotton · Enzyme wash',
-    price: '$180',
+    priceUsd: 180,
     handle: '/void/black-tee',
     image: img('tee-01-front.jpg'),
     imageAlt:
@@ -481,7 +482,7 @@ export function searchVoidProducts(query: string): VoidProductDetail[] {
       product.longDescription,
       product.material,
       product.slug,
-      product.price,
+      String(product.priceUsd),
       ...product.details,
       ...product.sizes,
       ...product.specs.map((row) => `${row.label} ${row.value}`),

@@ -1,5 +1,6 @@
 import clsx from 'clsx';
 import {useRef} from 'react';
+import {useRouteLoaderData} from '@remix-run/react';
 import useScroll from 'react-use/esm/useScroll';
 import {
   flattenConnection,
@@ -15,6 +16,7 @@ import type {
   CartCost,
   CartLine,
   CartLineUpdateInput,
+  CurrencyCode,
 } from '@shopify/hydrogen/storefront-api-types';
 
 import {Button} from '~/components/Button';
@@ -24,9 +26,11 @@ import {IconRemove} from '~/components/Icon';
 import {VoidCartSuggestions} from '~/components/VoidCartSuggestions';
 import {
   computeVoidCartSubtotal,
+  formatVoidCartLinePrice,
   parseVoidCartLine,
 } from '~/lib/void-cart-display';
-import {getInputStyleClasses} from '~/lib/utils';
+import {DEFAULT_LOCALE, getInputStyleClasses} from '~/lib/utils';
+import type {RootLoader} from '~/root';
 
 type Layouts = 'page' | 'drawer';
 
@@ -196,13 +200,15 @@ function CartSummary({
   lines: CartType['lines'] | undefined;
   layout: Layouts;
 }) {
+  const locale =
+    useRouteLoaderData<RootLoader>('root')?.selectedLocale ?? DEFAULT_LOCALE;
   const summary = {
     drawer: 'grid gap-4 p-6 border-t md:px-12',
     page: 'sticky top-nav grid gap-6 p-4 md:px-6 md:translate-y-4 bg-primary/5 rounded w-full',
   };
 
   const cartLines = lines ? flattenConnection(lines) : [];
-  const voidSubtotal = computeVoidCartSubtotal(cartLines);
+  const voidSubtotal = computeVoidCartSubtotal(cartLines, locale);
   const useVoidSubtotal = voidSubtotal && !voidSubtotal.hasNonVoidLines;
 
   return (
@@ -218,7 +224,7 @@ function CartSummary({
               <Money
                 data={{
                   amount: voidSubtotal.amount.toFixed(2),
-                  currencyCode: voidSubtotal.currencyCode,
+                  currencyCode: voidSubtotal.currencyCode as CurrencyCode,
                 }}
               />
             ) : cost?.subtotalAmount?.amount ? (
@@ -241,6 +247,8 @@ type OptimisticData = {
 
 function CartLineItem({line}: {line: CartLine}) {
   const optimisticData = useOptimisticData<OptimisticData>(line?.id);
+  const locale =
+    useRouteLoaderData<RootLoader>('root')?.selectedLocale ?? DEFAULT_LOCALE;
 
   if (!line?.id) return null;
 
@@ -303,7 +311,7 @@ function CartLineItem({line}: {line: CartLine}) {
               <>
                 <Text color="subtle">Size: {voidLine.size}</Text>
                 <Text className="font-sans text-fine uppercase tracking-wide text-primary/70">
-                  {voidLine.displayPrice}
+                  {formatVoidCartLinePrice(voidLine.priceUsd, locale)}
                 </Text>
               </>
             ) : (

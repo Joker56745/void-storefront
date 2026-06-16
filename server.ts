@@ -1,66 +1,69 @@
-// @ts-ignore
+// @ts-ignore — virtual Remix server build
 import * as remixBuild from 'virtual:remix/server-build';
-import {createRequestHandler} from '@vercel/remix';
+import type {Context} from '@netlify/edge-functions';
 import {
-  createStorefrontClient,
-  createCartHandler,
-  cartGetIdDefault,
-  cartSetIdDefault,
-  createCustomerAccountClient,
-  storefrontRedirect,
-} from '@shopify/hydrogen';
-import {getStorefrontHeaders} from '@shopify/remix-oxygen';
+  createHydrogenAppLoadContext,
+  createRequestHandler,
+} from '@netlify/remix-edge-adapter';
+import {storefrontRedirect} from '@shopify/hydrogen';
 
-import {AppSession} from '~/lib/session.server';
-import {getLocaleFromRequest} from '~/lib/utils';
+import {createAppLoadContext} from '~/lib/context';
 
-const handleRequest = createRequestHandler({
-  build: remixBuild,
-  mode: process.env.NODE_ENV,
-  getLoadContext: async (req) => {
-    const request = req as unknown as Request;
+const getEnv = (): Env => {
+  if (globalThis.Netlify) {
+    return globalThis.Netlify.env.toObject() as unknown as Env;
+  }
+  return process.env as unknown as Env;
+};
 
-    if (!process.env.SESSION_SECRET) {
-      throw new Error('SESSION_SECRET environment variable is not set');
+export default async function handler(
+  request: Request,
+  netlifyContext: Context,
+): Promise<Response | undefined> {
+  try {
+    const env = getEnv();
+
+    const executionContext = {
+      waitUntil: netlifyContext.waitUntil.bind(netlifyContext),
+    } as ExecutionContext;
+
+    const appLoadContext = await createHydrogenAppLoadContext(
+      request,
+      netlifyContext,
+      createAppLoadContext,
+    );
+
+    const handleRequest = createRequestHandler({
+      build: remixBuild,
+      mode: process.env.NODE_ENV,
+      getLoadContext: async () => appLoadContext,
+    });
+
+    const response = await handleRequest(request, appLoadContext);
+
+    if (!response) {
+      return;
     }
 
-    const session = await AppSession.init(request, [
-      process.env.SESSION_SECRET,
-    ]);
+    if (appLoadContext.session.isPending) {
+      response.headers.set(
+        'Set-Cookie',
+        await appLoadContext.session.commit(),
+      );
+    }
 
-    const {storefront} = createStorefrontClient({
-      i18n: getLocaleFromRequest(request),
-      publicStorefrontToken: process.env.PUBLIC_STOREFRONT_API_TOKEN!,
-      privateStorefrontToken: process.env.PRIVATE_STOREFRONT_API_TOKEN,
-      storeDomain: process.env.PUBLIC_STORE_DOMAIN!,
-      storefrontId: process.env.PUBLIC_STOREFRONT_ID,
-      storefrontHeaders: getStorefrontHeaders(request),
-    });
+    if (response.status === 404) {
+      return storefrontRedirect({
+        request,
+        response,
+        storefront: appLoadContext.storefront,
+      });
+    }
 
-    const customerAccount = createCustomerAccountClient({
-      waitUntil: (p) => p,
-      request,
-      session,
-      customerAccountId: process.env.PUBLIC_CUSTOMER_ACCOUNT_API_CLIENT_ID!,
-      shopId: process.env.SHOP_ID,
-    });
-
-    const cart = createCartHandler({
-      storefront,
-      customerAccount,
-      getCartId: cartGetIdDefault(request.headers),
-      setCartId: cartSetIdDefault(),
-    });
-
-    return {
-      session,
-      waitUntil: (p: Promise<unknown>) => p,
-      storefront,
-      customerAccount,
-      cart,
-      env: process.env as unknown as Env,
-    };
-  },
-});
-
-export default handleRequest;
+    return response;
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error(error);
+    return new Response('An unexpected error occurred', {status: 500});
+  }
+}

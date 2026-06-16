@@ -5,19 +5,13 @@ import {VoidHero} from '~/components/VoidHero';
 import {Manifesto} from '~/components/Manifesto';
 import {FeaturedProductsGrid} from '~/components/FeaturedProductsGrid';
 import {seoPayload} from '~/lib/seo.server';
+import {assertLocaleParam} from '~/lib/utils';
 import {routeHeaders} from '~/data/cache';
 
 export const headers = routeHeaders;
 
-export async function loader({params, context, request}: LoaderFunctionArgs) {
-  const {language, country} = context.storefront.i18n;
-
-  if (
-    params.locale &&
-    params.locale.toLowerCase() !== `${language}-${country}`.toLowerCase()
-  ) {
-    throw new Response(null, {status: 404});
-  }
+export async function loader({params, request}: LoaderFunctionArgs) {
+  assertLocaleParam(request, params.locale);
 
   return {
     seo: seoPayload.home({url: request.url}),

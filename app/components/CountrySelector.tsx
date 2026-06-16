@@ -1,6 +1,5 @@
-import {useFetcher, useLocation, useRouteLoaderData} from '@remix-run/react';
-import {useCallback, useEffect, useRef} from 'react';
-import {useInView} from 'react-intersection-observer';
+import {useLocation, useRouteLoaderData} from '@remix-run/react';
+import {useCallback, useRef} from 'react';
 import clsx from 'clsx';
 import type {CartBuyerIdentityInput} from '@shopify/hydrogen/storefront-api-types';
 import {CartForm} from '@shopify/hydrogen';
@@ -8,13 +7,12 @@ import {CartForm} from '@shopify/hydrogen';
 import {Button} from '~/components/Button';
 import {Heading} from '~/components/Text';
 import {IconCheck} from '~/components/Icon';
-import type {Localizations, Locale} from '~/lib/type';
-import {countries as ALL_COUNTRIES} from '~/data/countries';
-import {DEFAULT_LOCALE, usePrefixPathWithLocale} from '~/lib/utils';
+import type {Locale} from '~/lib/type';
+import {countries} from '~/data/countries';
+import {DEFAULT_LOCALE} from '~/lib/utils';
 import type {RootLoader} from '~/root';
 
 export function CountrySelector() {
-  const fetcher = useFetcher();
   const closeRef = useRef<HTMLDetailsElement>(null);
   const rootData = useRouteLoaderData<RootLoader>('root');
   const selectedLocale = rootData?.selectedLocale ?? DEFAULT_LOCALE;
@@ -24,41 +22,19 @@ export function CountrySelector() {
     '',
   )}${search}`;
 
-  const countriesApiPath = usePrefixPathWithLocale('/api/countries');
-  const countries = (fetcher.data ?? ALL_COUNTRIES) as Localizations;
-  const defaultLocale = countries?.['default'];
-  const defaultLocalePrefix = defaultLocale
-    ? `${defaultLocale?.language}-${defaultLocale?.country}`
-    : '';
-
-  const {ref, inView} = useInView({
-    threshold: 0,
-    triggerOnce: true,
-  });
-
-  const observerRef = useRef(null);
-  useEffect(() => {
-    ref(observerRef.current);
-  }, [ref, observerRef]);
-
-  // Get available countries list when in view
-  useEffect(() => {
-    if (!inView || fetcher.data || fetcher.state === 'loading') return;
-    fetcher.load(countriesApiPath);
-  }, [countriesApiPath, inView, fetcher]);
-
   const closeDropdown = useCallback(() => {
     closeRef.current?.removeAttribute('open');
   }, []);
 
+  const currencyOptions = Object.entries(countries);
+
   return (
     <section
-      ref={observerRef}
       className="void-country-selector relative z-20 grid w-full gap-4 overflow-visible"
       onMouseLeave={closeDropdown}
     >
       <Heading size="lead" className="cursor-default" as="h3">
-        Country
+        Currency
       </Heading>
       <div className="relative w-full">
         <details
@@ -69,31 +45,27 @@ export function CountrySelector() {
             {selectedLocale.label}
           </summary>
           <div className="void-country-selector-panel absolute bottom-full left-0 right-0 z-50 mb-2 max-h-[min(14rem,45vh)] w-full overflow-auto rounded border border-primary/15 bg-[#0a0a0a] shadow-[0_-8px_32px_rgb(0_0_0/0.55)]">
-            {countries &&
-              Object.keys(countries)
-                .filter((countryPath) => countryPath !== 'default')
-                .map((countryPath) => {
-                const countryLocale = countries[countryPath];
-                const isSelected =
-                  countryLocale.language === selectedLocale.language &&
-                  countryLocale.country === selectedLocale.country;
+            {currencyOptions.map(([countryPath, countryLocale]) => {
+              const isSelected =
+                countryPath === 'default'
+                  ? selectedLocale.pathPrefix === ''
+                  : selectedLocale.pathPrefix === countryPath;
 
-                const countryUrlPath = getCountryUrlPath({
-                  countryLocale,
-                  defaultLocalePrefix,
-                  pathWithoutLocale,
-                });
+              const countryUrlPath = getCountryUrlPath({
+                countryPath,
+                pathWithoutLocale,
+              });
 
-                return (
-                  <Country
-                    key={countryPath}
-                    closeDropdown={closeDropdown}
-                    countryUrlPath={countryUrlPath}
-                    isSelected={isSelected}
-                    countryLocale={countryLocale}
-                  />
-                );
-              })}
+              return (
+                <Country
+                  key={countryPath}
+                  closeDropdown={closeDropdown}
+                  countryUrlPath={countryUrlPath}
+                  isSelected={isSelected}
+                  countryLocale={countryLocale}
+                />
+              );
+            })}
           </div>
         </details>
       </div>
@@ -114,7 +86,6 @@ function Country({
 }) {
   return (
     <ChangeLocaleForm
-      key={countryLocale.country}
       redirectTo={countryUrlPath}
       buyerIdentity={{
         countryCode: countryLocale.country,
@@ -167,19 +138,15 @@ function ChangeLocaleForm({
 }
 
 function getCountryUrlPath({
-  countryLocale,
-  defaultLocalePrefix,
+  countryPath,
   pathWithoutLocale,
 }: {
-  countryLocale: Locale;
+  countryPath: string;
   pathWithoutLocale: string;
-  defaultLocalePrefix: string;
 }) {
-  let countryPrefixPath = '';
-  const countryLocalePrefix = `${countryLocale.language}-${countryLocale.country}`;
-
-  if (countryLocalePrefix !== defaultLocalePrefix) {
-    countryPrefixPath = `/${countryLocalePrefix.toLowerCase()}`;
+  if (countryPath === 'default') {
+    return pathWithoutLocale || '/';
   }
-  return `${countryPrefixPath}${pathWithoutLocale}`;
+
+  return `${countryPath}${pathWithoutLocale || ''}`;
 }

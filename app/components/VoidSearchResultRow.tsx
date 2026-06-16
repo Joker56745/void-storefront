@@ -1,5 +1,6 @@
 import {Link} from '~/components/Link';
 import type {VoidPlaceholderProduct} from '~/data/void-catalog';
+import {useVoidPrice} from '~/lib/void-pricing';
 
 type VoidSearchResultRowProps = {
   product: VoidPlaceholderProduct;
@@ -7,6 +8,8 @@ type VoidSearchResultRowProps = {
 };
 
 export function VoidSearchResultRow({product, onSelect}: VoidSearchResultRowProps) {
+  const formattedPrice = useVoidPrice(product.priceUsd);
+
   return (
     <Link
       to={product.handle}
@@ -29,7 +32,7 @@ export function VoidSearchResultRow({product, onSelect}: VoidSearchResultRowProp
       <div className="min-w-0 flex-1 pt-0.5">
         <p className="void-search-result-eyebrow">Core Collection</p>
         <p className="void-search-result-title mt-2">{product.title}</p>
-        <p className="void-search-result-price mt-3">{product.price}</p>
+        <p className="void-search-result-price mt-3">{formattedPrice}</p>
         <p className="void-search-result-desc mt-4">{product.description}</p>
         <p className="void-search-result-material mt-3">{product.material}</p>
       </div>

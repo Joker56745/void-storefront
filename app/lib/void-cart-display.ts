@@ -4,6 +4,11 @@ import {
   getVoidProductBySlug,
   type VoidProductDetail,
 } from '~/data/void-catalog';
+import {
+  convertVoidPriceUsd,
+  formatVoidPriceUsd,
+} from '~/lib/void-pricing';
+import type {I18nLocale} from '~/lib/type';
 
 export const VOID_CART_ATTR = {
   piece: 'Piece',
@@ -17,7 +22,7 @@ export type VoidCartLineDisplay = {
   slug: string;
   image: string;
   imageAlt: string;
-  displayPrice: string;
+  priceUsd: number;
   path: string;
 };
 
@@ -32,12 +37,6 @@ export function voidCartLineAttributes(
   ];
 }
 
-export function parseVoidDisplayPrice(price: string): number | null {
-  const match = price.replace(/,/g, '').match(/\$([\d.]+)/);
-  if (!match) return null;
-  return Number.parseFloat(match[1]);
-}
-
 export type VoidCartSubtotal = {
   amount: number;
   currencyCode: string;
@@ -47,6 +46,7 @@ export type VoidCartSubtotal = {
 /** Editorial subtotal from catalog prices when lines carry VØID attributes. */
 export function computeVoidCartSubtotal(
   lines: Array<Pick<CartLine, 'attributes' | 'quantity'>>,
+  locale: I18nLocale,
 ): VoidCartSubtotal | null {
   let total = 0;
   let voidLineCount = 0;
@@ -59,23 +59,24 @@ export function computeVoidCartSubtotal(
       continue;
     }
 
-    const unit = parseVoidDisplayPrice(voidLine.displayPrice);
-    if (unit == null) {
-      hasNonVoidLines = true;
-      continue;
-    }
-
     voidLineCount += 1;
-    total += unit * (line.quantity ?? 1);
+    total += convertVoidPriceUsd(voidLine.priceUsd, locale.currency) * (line.quantity ?? 1);
   }
 
   if (voidLineCount === 0) return null;
 
   return {
     amount: total,
-    currencyCode: 'USD',
+    currencyCode: locale.currency,
     hasNonVoidLines,
   };
+}
+
+export function formatVoidCartLinePrice(
+  priceUsd: number,
+  locale: I18nLocale,
+): string {
+  return formatVoidPriceUsd(priceUsd, locale);
 }
 
 export function parseVoidCartLine(
@@ -98,7 +99,7 @@ export function parseVoidCartLine(
     slug,
     image: catalog?.image ?? '',
     imageAlt: catalog?.imageAlt ?? title,
-    displayPrice: catalog?.price ?? '',
+    priceUsd: catalog?.priceUsd ?? 0,
     path: catalog?.handle ?? `/void/${slug}`,
   };
 }

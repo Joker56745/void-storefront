@@ -11,6 +11,15 @@ export default async function handleRequest(
   remixContext: EntryContext,
   context: AppLoadContext,
 ) {
+  // Deno (Netlify Edge) can throw if the stream is closed after abort.
+  let isStreamClosing = false;
+  const abortController = new AbortController();
+  request.signal.addEventListener('abort', () => {
+    if (!isStreamClosing) {
+      abortController.abort(request.signal.reason);
+    }
+  });
+
   const {nonce, header, NonceProvider} = createContentSecurityPolicy({
     shop: {
       checkoutDomain: context.env.PUBLIC_CHECKOUT_DOMAIN,
@@ -38,7 +47,7 @@ export default async function handleRequest(
     </NonceProvider>,
     {
       nonce,
-      signal: request.signal,
+      signal: abortController.signal,
       onError(error) {
         // eslint-disable-next-line no-console
         console.error(error);
@@ -47,13 +56,21 @@ export default async function handleRequest(
     },
   );
 
+  const transformedBody = body.pipeThrough(
+    new TransformStream({
+      flush() {
+        isStreamClosing = true;
+      },
+    }),
+  );
+
   if (isbot(request.headers.get('user-agent'))) {
     await body.allReady;
   }
 
   responseHeaders.set('Content-Type', 'text/html');
   responseHeaders.set('Content-Security-Policy', header);
-  return new Response(body, {
+  return new Response(transformedBody, {
     headers: responseHeaders,
     status: responseStatusCode,
   });

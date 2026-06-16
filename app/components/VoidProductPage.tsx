@@ -10,6 +10,7 @@ import {
   VOID_COLLECTION_PATH,
 } from '~/data/void-catalog';
 import type {VoidShopifyVariant} from '~/lib/void-shopify';
+import {useVoidPrice} from '~/lib/void-pricing';
 
 type VoidProductPageProps = {
   product: VoidProductDetail;
@@ -22,6 +23,7 @@ export function VoidProductPage({
 }: VoidProductPageProps) {
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const related = getRelatedVoidProducts(product.slug);
+  const formattedPrice = useVoidPrice(product.priceUsd);
   const canAdd = selectedSize !== null;
 
   return (
@@ -49,7 +51,7 @@ export function VoidProductPage({
 
             <h1 className="void-pdp-title">{product.title}</h1>
 
-            <p className="void-pdp-price mt-4 sm:mt-6">{product.price}</p>
+            <p className="void-pdp-price mt-4 sm:mt-6">{formattedPrice}</p>
 
             <p className="void-pdp-lead mt-6 sm:mt-8">{product.longDescription}</p>
 

@@ -20,6 +20,7 @@ import {
 import {loadVoidShopifyVariants} from '~/lib/void-shopify.server';
 
 import {seoPayload} from '~/lib/seo.server';
+import {assertLocaleParam} from '~/lib/utils';
 
 import {routeHeaders} from '~/data/cache';
 
@@ -30,6 +31,7 @@ export const headers = routeHeaders;
 
 
 export async function loader({params, request, context}: LoaderFunctionArgs) {
+  assertLocaleParam(request, params.locale);
 
   const {productSlug} = params;
 
